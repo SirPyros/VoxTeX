@@ -29,15 +29,27 @@ jobs:
           cache: npm
 
       - name: Install
-        # npm install rather than npm ci: this lockfile was generated on
-        # Windows, and npm's long-standing platform-optional-deps bug
-        # (npm/cli#4828) leaves Linux native binaries (@rolldown, @esbuild,
-        # lightningcss, typescript-native) out of it. npm ci then "succeeds"
-        # but vitest/vite crash at runtime with missing native modules.
-        run: npm install
+        # The lockfile is generated on Windows and npm's platform-optional-deps
+        # bug (npm/cli#4828) leaves Linux native binaries (@rolldown, @esbuild,
+        # lightningcss, typescript-native) out of it — and with the lock
+        # present, even `npm install` won't backfill them. The documented
+        # workaround is to drop the lock on the CI side.
+        run: |
+          rm -f package-lock.json
+          npm install
 
       - name: Test (parser + endpointer)
-        run: npm test
+        # On failure, surface the tail of the output as a public annotation
+        # (raw Actions logs require sign-in, annotations don't).
+        shell: bash
+        run: |
+          if ! npm test > test-output.txt 2>&1; then
+            msg=$(tail -c 2500 test-output.txt)
+            msg="${msg//'%'/%25}"; msg="${msg//$'\r'/%0D}"; msg="${msg//$'\n'/%0A}"
+            echo "::error::npm test failed:%0A${msg}"
+            exit 1
+          fi
+          tail -n 30 test-output.txt
 
       - name: Build (SDK, then demo app)
         run: npm run build
