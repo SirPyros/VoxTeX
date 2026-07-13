@@ -29,7 +29,12 @@ jobs:
           cache: npm
 
       - name: Install
-        run: npm ci
+        # npm install rather than npm ci: this lockfile was generated on
+        # Windows, and npm's long-standing platform-optional-deps bug
+        # (npm/cli#4828) leaves Linux native binaries (@rolldown, @esbuild,
+        # lightningcss, typescript-native) out of it. npm ci then "succeeds"
+        # but vitest/vite crash at runtime with missing native modules.
+        run: npm install
 
       - name: Test (parser + endpointer)
         run: npm test
