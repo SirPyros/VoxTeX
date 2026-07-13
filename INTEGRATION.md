@@ -307,7 +307,55 @@ Read-back is the text a student hears to confirm what was parsed.
 
 ---
 
-## 6. Browser requirements, permissions, CSP
+## 6. Personalization (opt-in local voice profile)
+
+The SDK can adapt to an individual speaker — entirely on-device:
+
+- **Learned corrections**: systematic per-user mishearings ("theta" always
+  transcribed as "feta") are learned from confirm/reject feedback and applied
+  to future transcripts before parsing. Rules can only map *unrecognized*
+  words *into* the math vocabulary, so a learned rule can never rewrite valid
+  math ("two" can never learn to become "three").
+- **Acoustic profile**: the microphone's measured noise floor is persisted and
+  seeds the VAD, so recordings start pre-calibrated.
+
+```js
+const session = createVoiceMathInput({
+  personalization: true, // or { storageKey, store, minObservations, maxRules }
+});
+
+// Feed it learning signals from YOUR UI:
+session.confirmResult(result); // user accepted (submit / "yes" / checkmark)
+session.rejectResult(result);  // user rejected ("try again" / "no")
+// dictateWithConfirmation() emits both automatically; parse failures count
+// as implicit rejections. A rejection followed by a confirmation is diffed;
+// a pair observed twice becomes an active rule.
+
+// Inspection / management (build a "my voice profile" UI):
+const p = session.personalization;
+p.rules();               // [{ from: "feta", to: "theta", count: 2 }]
+p.audio();               // { noiseFloor: 0.008, samples: 12 } | null
+p.addRule('cosign', 'cosine');
+p.removeRule('cosign');
+p.clear();               // "clear my voice profile"
+p.exportProfile() / p.importProfile(json);  // carry across devices
+```
+
+When corrections were applied, the `DictationResult` says so:
+`result.rawTranscript` (original ASR text) and `result.appliedCorrections`.
+
+Storage defaults to `localStorage` under `voxtex-voice-profile`; pass
+`storageKey` to scope per user, or implement the 3-method
+`PersonalizationStore` interface for IndexedDB or your own backend. On the Web
+Component, add the `personalize` attribute.
+
+Privacy note: the profile is derived from a user's speech. It never leaves the
+browser by default, but in education settings treat it as student data —
+surface a visible "clear voice profile" control (one call: `p.clear()`).
+
+---
+
+## 7. Browser requirements, permissions, CSP
 
 - **Secure context required**: `getUserMedia` works only on HTTPS or
   localhost.
@@ -326,7 +374,7 @@ Read-back is the text a student hears to confirm what was parsed.
 
 ---
 
-## 7. What the grammar accepts
+## 8. What the grammar accepts
 
 Numbers, fraction words, variables (a–z, Greek), `plus or minus`, fractions
 (`over` / `all over`), powers (incl. ordinals: "x to the fourth"), roots, trig,

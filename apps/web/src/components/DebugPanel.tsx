@@ -1,4 +1,4 @@
-import type { DictationResult } from '@voxtex/voice-math-input';
+import type { AudioProfile, CorrectionRule, DictationResult } from '@voxtex/voice-math-input';
 
 export interface DebugInfo {
   transcript: string;
@@ -8,6 +8,9 @@ export interface DebugInfo {
   readbackEngine: 'sre' | 'builtin' | null;
   asrBackend: string | null;
   checkCanonical: { student: string; expected: string } | null;
+  personalRules: CorrectionRule[] | null;
+  audioProfile: AudioProfile | null;
+  onClearProfile: (() => void) | null;
 }
 
 /** Transcript → tokens → parse tree → LaTeX, plus pipeline metadata. */
@@ -24,7 +27,14 @@ export function DebugPanel({ info }: { info: DebugInfo }) {
 
         <dt>Raw transcript</dt>
         <dd>
-          <pre>{info.transcript || '—'}</pre>
+          <pre>
+            {info.result?.rawTranscript ?? info.transcript ?? '—'}
+            {info.result?.appliedCorrections?.length
+              ? `\ncorrections applied: ${info.result.appliedCorrections
+                  .map((c) => `"${c.from}" → "${c.to}"`)
+                  .join(', ')}\n→ ${info.result.transcript}`
+              : ''}
+          </pre>
         </dd>
 
         <dt>Tokens</dt>
@@ -64,6 +74,29 @@ export function DebugPanel({ info }: { info: DebugInfo }) {
                 student: {info.checkCanonical.student}
                 {'\n'}expected: {info.checkCanonical.expected}
               </pre>
+            </dd>
+          </>
+        )}
+
+        {info.personalRules && (
+          <>
+            <dt>Voice profile (stored locally)</dt>
+            <dd>
+              <pre>
+                {info.personalRules.length > 0
+                  ? info.personalRules
+                      .map((r) => `"${r.from}" → "${r.to}" (seen ${r.count}×)`)
+                      .join('\n')
+                  : 'no learned corrections yet'}
+                {info.audioProfile
+                  ? `\nmic noise floor: ${info.audioProfile.noiseFloor.toFixed(4)} (${info.audioProfile.samples} recordings)`
+                  : ''}
+              </pre>
+              {info.onClearProfile && (
+                <button type="button" className="debug-clear" onClick={info.onClearProfile}>
+                  Clear voice profile
+                </button>
+              )}
             </dd>
           </>
         )}

@@ -5,7 +5,7 @@ import { toSpeech } from './speech';
 import { ParseError, Token, tokenize } from './tokenizer';
 
 export type { MathNode, BinNode, DerivativeNode, FracNode, FuncName, FuncNode, GroupNode, IntegralNode, NumNode, PowNode, PrimeNode, RelNode, RootNode, SumNode, VarNode } from './ast';
-export { ParseError, tokenize, normalizeWords } from './tokenizer';
+export { ParseError, isRecognizedPhrase, tokenize, normalizeWords } from './tokenizer';
 export type { Token, TokenKind } from './tokenizer';
 export { toLatex } from './latex';
 export { toSpeech } from './speech';

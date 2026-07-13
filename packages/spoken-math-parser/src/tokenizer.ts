@@ -362,3 +362,17 @@ export function tokenize(input: string): Token[] {
   tokens.push({ kind: 'EOF', pos: words.length, raw: '' });
   return tokens;
 }
+
+/**
+ * True when the phrase tokenizes cleanly into at least one math token —
+ * i.e. every word is in the spoken-math vocabulary. Used by consumers (e.g.
+ * the personalization layer) to decide whether a phrase is safe to map INTO.
+ */
+export function isRecognizedPhrase(phrase: string): boolean {
+  if (!phrase.trim()) return false;
+  try {
+    return tokenize(phrase).length > 1; // more than just EOF (pure fillers don't count)
+  } catch {
+    return false;
+  }
+}

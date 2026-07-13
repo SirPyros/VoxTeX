@@ -20,6 +20,20 @@ export type {
   YesNoResult,
 } from './types';
 
+export { CorrectionEngine, diffReplacements } from './corrections';
+export type { AppliedCorrection, CorrectionEngineOptions, CorrectionRule } from './corrections';
+export {
+  LocalStoragePersonalizationStore,
+  MemoryPersonalizationStore,
+  Personalization,
+} from './personalization';
+export type {
+  AudioProfile,
+  PersonalizationOptions,
+  PersonalizationProfile,
+  PersonalizationStore,
+} from './personalization';
+
 export { Endpointer } from './endpointer';
 export type { EndpointDecision, EndpointerConfig } from './endpointer';
 export { startRecording } from './recorder';

@@ -1,5 +1,6 @@
 import { toSpeech, tryParseSpokenMath } from '@voxtex/spoken-math-parser';
 import type { FromWorker, ToWorker } from './messages';
+import { Personalization } from './personalization';
 import { startRecording, type RecordingController, type RecordingOptions } from './recorder';
 import { speak as ttsSpeak, stopSpeaking as ttsStop } from './speech';
 import {
@@ -56,6 +57,7 @@ export class VoiceMathInputSession {
   private recorder: RecordingController | null = null;
   private cancelledRecording = false;
   private disposed = false;
+  private readonly personal: Personalization | null;
   private readonly listeners: { [E in keyof SessionEvents]: Set<Listener<E>> } = {
     status: new Set(),
     progress: new Set(),
@@ -63,10 +65,23 @@ export class VoiceMathInputSession {
 
   constructor(options: VoiceMathInputOptions = {}) {
     this.options = options;
+    this.personal =
+      options.personalization === undefined || options.personalization === false
+        ? null
+        : new Personalization(options.personalization === true ? {} : options.personalization);
   }
 
   get status(): SessionStatus {
     return this.statusValue;
+  }
+
+  /**
+   * The local personalization profile (learned corrections + audio profile),
+   * or null when the `personalization` option is off. Feed it learning
+   * signals with confirmResult()/rejectResult().
+   */
+  get personalization(): Personalization | null {
+    return this.personal;
   }
 
   get backend(): 'webgpu' | 'wasm' | null {
@@ -200,16 +215,34 @@ export class VoiceMathInputSession {
     }
   }
 
-  /** Parse typed text through the same grammar (no audio involved). */
+  /** Parse typed text through the same pipeline as voice (corrections included). */
   async parseText(text: string): Promise<DictationResult> {
     this.assertUsable();
-    const attempt = tryParseSpokenMath(text);
+    let corrected = text;
+    let applied: DictationResult['appliedCorrections'];
+    if (this.personal) {
+      await this.personal.ready;
+      const c = this.personal.applyCorrections(text);
+      corrected = c.text;
+      if (c.applied.length > 0) applied = c.applied;
+    }
+    const attempt = tryParseSpokenMath(corrected);
     if (!attempt.ok) {
-      throw new VoiceMathError('parse-error', attempt.error.message, text);
+      this.personal?.noteRejected(text);
+      throw new VoiceMathError('parse-error', attempt.error.message, corrected);
     }
     const r = attempt.result;
     const speech = await this.readbackFor(r.latex, r.speech);
-    return { latex: r.latex, transcript: text, speech, ast: r.ast, tokens: r.tokens, transcribeMs: 0 };
+    return {
+      latex: r.latex,
+      transcript: corrected,
+      speech,
+      ast: r.ast,
+      tokens: r.tokens,
+      transcribeMs: 0,
+      ...(corrected !== text ? { rawTranscript: text } : {}),
+      ...(applied !== undefined ? { appliedCorrections: applied } : {}),
+    };
   }
 
   /** One hands-free dictation: record (VAD auto-stop) -> transcribe -> parse. */
@@ -221,20 +254,54 @@ export class VoiceMathInputSession {
     if (!transcript.text) {
       throw new VoiceMathError('empty-transcript', "The recording didn't contain any recognizable speech.");
     }
-    const attempt = tryParseSpokenMath(transcript.text);
+
+    // Personalization: apply learned corrections to the raw ASR text.
+    const raw = transcript.text;
+    let corrected = raw;
+    let applied: DictationResult['appliedCorrections'];
+    if (this.personal) {
+      await this.personal.ready;
+      const c = this.personal.applyCorrections(raw);
+      corrected = c.text;
+      if (c.applied.length > 0) applied = c.applied;
+    }
+
+    const attempt = tryParseSpokenMath(corrected);
     if (!attempt.ok) {
-      throw new VoiceMathError('parse-error', attempt.error.message, transcript.text);
+      // A failed parse is an implicit rejection: if the user retries and
+      // confirms, the diff against this raw transcript teaches a correction.
+      this.personal?.noteRejected(raw);
+      throw new VoiceMathError('parse-error', attempt.error.message, corrected);
     }
     const r = attempt.result;
     const speech = await this.readbackFor(r.latex, r.speech);
     return {
       latex: r.latex,
-      transcript: transcript.text,
+      transcript: corrected,
       speech,
       ast: r.ast,
       tokens: r.tokens,
       transcribeMs: transcript.ms,
+      ...(corrected !== raw ? { rawTranscript: raw } : {}),
+      ...(applied !== undefined ? { appliedCorrections: applied } : {}),
     };
+  }
+
+  /**
+   * Tell the session the user accepted this result (pressed Confirm, said
+   * "yes", submitted the answer). With personalization on, this is the
+   * positive learning signal: it is diffed against the last rejection.
+   */
+  confirmResult(result: DictationResult): void {
+    this.personal?.noteConfirmed(result.rawTranscript ?? result.transcript);
+  }
+
+  /**
+   * Tell the session the user rejected this result (said "no", pressed Try
+   * again). The next confirmed transcript teaches corrections against it.
+   */
+  rejectResult(result: DictationResult): void {
+    this.personal?.noteRejected(result.rawTranscript ?? result.transcript);
   }
 
   /** Listen for a short yes/no reply through the same ASR pipeline. */
@@ -270,6 +337,14 @@ export class VoiceMathInputSession {
     ttsStop();
     this.setStatus(recordingStatus);
     this.cancelledRecording = false;
+
+    // Seed the VAD with the persisted noise floor, when we have one.
+    let initialNoiseFloor: number | undefined;
+    if (this.personal) {
+      await this.personal.ready;
+      initialNoiseFloor = this.personal.audio()?.noiseFloor;
+    }
+
     let recording;
     try {
       this.recorder = await startRecording({
@@ -278,6 +353,7 @@ export class VoiceMathInputSession {
           silenceMs: tuning.silenceMs,
           minSpeechMs: tuning.minSpeechMs,
           noSpeechTimeoutMs: tuning.noSpeechTimeoutMs,
+          ...(initialNoiseFloor !== undefined ? { initialNoiseFloor } : {}),
         },
       });
       recording = await this.recorder.result;
@@ -286,6 +362,10 @@ export class VoiceMathInputSession {
       throw new VoiceMathError('mic-unavailable', `Microphone problem: ${String(err)}`);
     } finally {
       this.recorder = null;
+    }
+
+    if (this.personal && recording.noiseFloor !== null) {
+      this.personal.updateAudio(recording.noiseFloor);
     }
 
     if (this.cancelledRecording) {
@@ -366,8 +446,12 @@ export class VoiceMathInputSession {
         ({ reply } = await this.listenYesNo());
       }
 
-      if (reply === 'yes') return { result, confirmed: true, reply, attempts };
+      if (reply === 'yes') {
+        this.confirmResult(result); // personalization learning signal
+        return { result, confirmed: true, reply, attempts };
+      }
       if (reply === 'no' && attempts < maxAttempts) {
+        this.rejectResult(result);
         await this.speak('Okay, try again.');
         continue;
       }

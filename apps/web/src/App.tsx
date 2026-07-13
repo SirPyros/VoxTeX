@@ -44,6 +44,8 @@ export default function App() {
         readback: createSreReadback({
           mathmapsUrl: `${import.meta.env.BASE_URL}sre/mathmaps`,
         }),
+        // Local voice profile: learned ASR corrections + mic calibration.
+        personalization: true,
       });
       sessionRef.current.on('status', setSessionStatus);
     }
@@ -82,8 +84,13 @@ export default function App() {
     }
   }, [session]);
 
+  const [profileVersion, setProfileVersion] = useState(0);
+  const touchProfile = useCallback(() => setProfileVersion((v) => v + 1), []);
+
   const submit = useCallback(
     async (r: DictationResult) => {
+      session().confirmResult(r); // personalization: positive learning signal
+      touchProfile();
       const outcome = checkAnswer(r.latex, item.expectedLatex);
       setCheck(outcome);
       setPhase('done');
@@ -96,7 +103,7 @@ export default function App() {
       setStatus(message);
       await session().speak(message);
     },
-    [item, session],
+    [item, session, touchProfile],
   );
 
   /** Voice yes/no loop after a read-back; falls back to buttons when unclear. */
@@ -109,6 +116,7 @@ export default function App() {
         if (reply === 'yes') {
           await submit(r);
         } else if (reply === 'no') {
+          s.rejectResult(r); // personalization: remember what was misheard
           resetAttempt('Okay — try again.');
           await s.speak('Okay, try again.');
           void beginDictation();
@@ -232,6 +240,10 @@ export default function App() {
       : 'sre'
     : null;
 
+  // profileVersion re-reads the profile after learning events.
+  void profileVersion;
+  const personalization = sessionRef.current?.personalization ?? null;
+
   const debugInfo: DebugInfo = {
     transcript,
     transcribeMs: result && result.transcribeMs > 0 ? result.transcribeMs : null,
@@ -241,6 +253,14 @@ export default function App() {
     asrBackend: loadState.backend ?? null,
     checkCanonical: check
       ? { student: check.studentCanonical, expected: check.expectedCanonical }
+      : null,
+    personalRules: personalization?.rules() ?? null,
+    audioProfile: personalization?.audio() ?? null,
+    onClearProfile: personalization
+      ? () => {
+          personalization.clear();
+          touchProfile();
+        }
       : null,
   };
 
@@ -330,7 +350,10 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => resetAttempt('Okay — try again.')}
+                  onClick={() => {
+                    session().rejectResult(result);
+                    resetAttempt('Okay — try again.');
+                  }}
                 >
                   Try again
                 </button>

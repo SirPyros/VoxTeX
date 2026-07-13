@@ -10,6 +10,8 @@ export type EndReason = 'manual' | 'speech-ended' | 'timeout' | 'no-speech';
 export interface RecordingResult {
   samples: Float32Array;
   endReason: EndReason;
+  /** RMS noise floor measured during calibration (null without VAD). */
+  noiseFloor: number | null;
 }
 
 export interface VadOptions {
@@ -19,6 +21,8 @@ export interface VadOptions {
   minSpeechMs: number;
   /** Give up when nothing is said within this window (ms). */
   noSpeechTimeoutMs: number;
+  /** Persisted noise floor to seed calibration (personalization). */
+  initialNoiseFloor?: number;
 }
 
 export interface RecordingOptions {
@@ -68,8 +72,10 @@ export async function startRecording(options: RecordingOptions): Promise<Recordi
   };
 
   // Voice-activity monitoring on the same stream via an AnalyserNode.
+  let endpointer: Endpointer | null = null;
   if (options.vad) {
-    const endpointer = new Endpointer({ maxMs: options.maxMs, ...options.vad });
+    endpointer = new Endpointer({ maxMs: options.maxMs, ...options.vad });
+    const ep = endpointer;
     monitorCtx = new AudioContext();
     const source = monitorCtx.createMediaStreamSource(stream);
     const analyser = monitorCtx.createAnalyser();
@@ -85,7 +91,7 @@ export async function startRecording(options: RecordingOptions): Promise<Recordi
       let sumSquares = 0;
       for (let i = 0; i < frame.length; i++) sumSquares += frame[i]! * frame[i]!;
       const rms = Math.sqrt(sumSquares / frame.length);
-      const decision = endpointer.update(rms, frameMs);
+      const decision = ep.update(rms, frameMs);
       if (decision !== null) stopWith(decision);
     }, FRAME_MS);
   } else {
@@ -104,13 +110,14 @@ export async function startRecording(options: RecordingOptions): Promise<Recordi
       cleanup();
       try {
         const reason = endReason ?? 'manual';
+        const noiseFloor = endpointer?.measuredNoiseFloor ?? null;
         if (reason === 'no-speech') {
           // Nothing worth decoding.
-          resolve({ samples: new Float32Array(0), endReason: reason });
+          resolve({ samples: new Float32Array(0), endReason: reason, noiseFloor });
           return;
         }
         const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
-        resolve({ samples: await decodeTo16kMono(blob), endReason: reason });
+        resolve({ samples: await decodeTo16kMono(blob), endReason: reason, noiseFloor });
       } catch (err) {
         reject(err instanceof Error ? err : new Error(String(err)));
       }

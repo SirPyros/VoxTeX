@@ -23,6 +23,11 @@ export interface EndpointerConfig {
   noSpeechTimeoutMs: number;
   /** Time spent measuring the noise floor at the start (ms). Default 240. */
   calibrationMs?: number;
+  /**
+   * Persisted noise floor from previous recordings (personalization).
+   * When provided, calibration is shortened and blended with this seed.
+   */
+  initialNoiseFloor?: number;
 }
 
 export type EndpointDecision = 'speech-ended' | 'no-speech' | 'timeout' | null;
@@ -35,7 +40,8 @@ const MAX_THRESHOLD = 0.08;
 const NOISE_MULTIPLIER = 3;
 
 export class Endpointer {
-  private readonly config: Required<EndpointerConfig>;
+  private readonly config: EndpointerConfig & { calibrationMs: number };
+  private readonly initialNoiseFloor: number | null;
   private elapsedMs = 0;
   private voicedMs = 0;
   private trailingSilenceMs = 0;
@@ -44,13 +50,27 @@ export class Endpointer {
   private calibrated = false;
   private threshold = MIN_THRESHOLD;
   private speechHeard = false;
+  private measuredFloor: number | null = null;
 
   constructor(config: EndpointerConfig) {
-    this.config = { calibrationMs: 240, ...config };
+    this.initialNoiseFloor = config.initialNoiseFloor ?? null;
+    // A persisted noise floor lets us shorten the cold-start calibration.
+    const calibrationMs =
+      config.calibrationMs ?? (this.initialNoiseFloor !== null ? 120 : 240);
+    this.config = { ...config, calibrationMs };
+    if (this.initialNoiseFloor !== null) {
+      this.threshold = clampThreshold(this.initialNoiseFloor * NOISE_MULTIPLIER);
+    }
   }
 
   get speechDetected(): boolean {
     return this.speechHeard;
+  }
+
+  /** The noise floor measured during this recording's calibration window
+   * (not blended with the seed) — feed it back into the persisted profile. */
+  get measuredNoiseFloor(): number | null {
+    return this.measuredFloor;
   }
 
   /** Feed one analysis frame. Returns a stop reason, or null to continue. */
@@ -89,12 +109,20 @@ export class Endpointer {
   }
 
   private finishCalibration(): void {
-    const noiseFloor =
-      this.calibrationFrames > 0 ? this.calibrationSum / this.calibrationFrames : 0;
-    this.threshold = Math.min(
-      MAX_THRESHOLD,
-      Math.max(MIN_THRESHOLD, noiseFloor * NOISE_MULTIPLIER),
-    );
+    const measured =
+      this.calibrationFrames > 0 ? this.calibrationSum / this.calibrationFrames : null;
+    this.measuredFloor = measured;
+    // Blend a persisted seed with the live measurement: robust to both a
+    // stale profile (different room) and a polluted calibration window.
+    const floor =
+      this.initialNoiseFloor !== null && measured !== null
+        ? (measured + this.initialNoiseFloor) / 2
+        : (measured ?? this.initialNoiseFloor ?? 0);
+    this.threshold = clampThreshold(floor * NOISE_MULTIPLIER);
     this.calibrated = true;
   }
+}
+
+function clampThreshold(value: number): number {
+  return Math.min(MAX_THRESHOLD, Math.max(MIN_THRESHOLD, value));
 }

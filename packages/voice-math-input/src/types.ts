@@ -1,4 +1,6 @@
 import type { MathNode, Token } from '@voxtex/spoken-math-parser';
+import type { AppliedCorrection } from './corrections';
+import type { PersonalizationOptions } from './personalization';
 
 export type DeviceMode = 'auto' | 'webgpu' | 'wasm';
 
@@ -56,6 +58,13 @@ export interface VoiceMathInputOptions {
    * false to skip read-back generation.
    */
   readback?: 'builtin' | false | ReadbackProvider;
+  /**
+   * Opt-in per-user personalization, stored locally (localStorage by default):
+   * learned ASR corrections (from confirm/reject feedback) and a persisted
+   * microphone noise-floor profile that pre-calibrates the VAD.
+   * `true` uses defaults; pass options for a custom store/key/thresholds.
+   */
+  personalization?: boolean | PersonalizationOptions;
 }
 
 export type SessionStatus =
@@ -92,6 +101,10 @@ export interface DictationResult {
   tokens: Token[];
   /** Worker-side inference time (ms). */
   transcribeMs: number;
+  /** Original ASR transcript, present when learned corrections changed it. */
+  rawTranscript?: string;
+  /** Learned corrections that were applied to this transcript. */
+  appliedCorrections?: AppliedCorrection[];
 }
 
 export type YesNo = 'yes' | 'no' | 'unclear' | 'silence';

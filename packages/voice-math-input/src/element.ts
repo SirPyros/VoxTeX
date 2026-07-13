@@ -9,6 +9,8 @@
 //   wasm-base-url    self-hosted onnxruntime wasm binaries
 //   readback         builtin (default) | off
 //   confirm          when present, runs the voice yes/no confirmation loop
+//   personalize      when present, enables the local voice profile (learned
+//                    corrections + noise-floor calibration in localStorage)
 //   label            button label (default "Speak math")
 //
 // Events (bubble, composed):
@@ -88,6 +90,7 @@ export class VoiceMathInputElement extends HTMLElement {
         model: this.getAttribute('model') ?? undefined,
         device: (this.getAttribute('device') as 'auto' | 'webgpu' | 'wasm' | null) ?? undefined,
         readback: this.getAttribute('readback') === 'off' ? false : 'builtin',
+        personalization: this.hasAttribute('personalize'),
         assets: {
           modelBaseUrl: this.getAttribute('model-base-url') ?? undefined,
           wasmBaseUrl: this.getAttribute('wasm-base-url') ?? undefined,

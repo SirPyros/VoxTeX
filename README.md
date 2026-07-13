@@ -94,5 +94,9 @@ the mic — useful for testing and as another access lane.
   graded sample items.
 - End-pointing is a simple RMS-energy VAD (calibrated noise floor) — good
   enough for quiet rooms; a spectral VAD would be the next step.
+- **Personalization (opt-in)**: the SDK learns per-user mishearing corrections
+  from confirm/reject feedback (constrained so valid math can never be
+  rewritten) and persists a mic noise-floor profile — all in local browser
+  storage, with inspect/export/clear APIs. See INTEGRATION.md §6.
 - `speechSynthesis` voices vary by OS; the math speech text itself is
   deterministic (SRE ClearSpeak, with the parser's own read-back as fallback).

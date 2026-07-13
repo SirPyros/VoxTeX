@@ -294,6 +294,21 @@ select:focus-visible {
   color: #ffd479;
 }
 
+.debug-clear {
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #8fa7d9;
+  background: transparent;
+  color: #dbe4f5;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.debug-clear:hover {
+  background: #1d2942;
+}
+
 footer {
   margin-top: 2rem;
   color: var(--muted);

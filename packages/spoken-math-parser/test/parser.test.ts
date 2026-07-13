@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ParseError, parseSpokenMath, toSpeech } from '../src/index';
+import { isRecognizedPhrase, ParseError, parseSpokenMath, toSpeech } from '../src/index';
 
 function latex(phrase: string): string {
   return parseSpokenMath(phrase).latex;
@@ -418,6 +418,21 @@ describe('the quadratic formula', () => {
       expect(ast.right.num.op).toBe('pm');
       expect(ast.right.num.right.type).toBe('root');
     }
+  });
+});
+
+describe('isRecognizedPhrase', () => {
+  it.each<[string, boolean]>([
+    ['theta', true],
+    ['divided by', true],
+    ['one over x', true],
+    ['feta', false], // not vocabulary
+    ['blorp', false],
+    ['', false],
+    ['the', false], // pure filler is not math
+    ['x plus feta', false], // one unknown word taints the phrase
+  ])('%s -> %s', (phrase, expected) => {
+    expect(isRecognizedPhrase(phrase)).toBe(expected);
   });
 });
 

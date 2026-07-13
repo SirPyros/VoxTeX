@@ -82,6 +82,50 @@ describe('Endpointer', () => {
     expect(ep.speechDetected).toBe(true);
   });
 
+  it('reports the measured noise floor after calibration', () => {
+    const ep = new Endpointer(CONFIG);
+    run(ep, [
+      [QUIET, 300],
+      [VOICE, 500],
+      [QUIET, 2000],
+    ]);
+    expect(ep.measuredNoiseFloor).toBeCloseTo(QUIET, 6);
+  });
+
+  it('a persisted noise floor raises the threshold in a noisy setup', () => {
+    // A loud-fan profile (0.02): moderate hum at 0.03 must not count as
+    // speech once the seed is blended in.
+    const seeded = new Endpointer({ ...CONFIG, initialNoiseFloor: 0.02 });
+    const decision = run(seeded, [
+      [0.03, 200],
+      [0.02, 5000],
+    ]);
+    expect(decision).toBe('no-speech');
+    expect(seeded.speechDetected).toBe(false);
+
+    // Real speech still gets through on the same seed.
+    const seeded2 = new Endpointer({ ...CONFIG, initialNoiseFloor: 0.02 });
+    const decision2 = run(seeded2, [
+      [0.02, 200],
+      [0.09, 800],
+      [0.02, 2000],
+    ]);
+    expect(decision2).toBe('speech-ended');
+  });
+
+  it('blends a stale seed with the live measurement', () => {
+    // Seed says noisy room (0.02) but the room is actually quiet (0.002):
+    // blended floor ~0.011 -> threshold ~0.033, so moderate speech at 0.05
+    // is detected even though the stale seed alone would demand 0.06.
+    const ep = new Endpointer({ ...CONFIG, initialNoiseFloor: 0.02 });
+    const decision = run(ep, [
+      [QUIET, 240], // calibration window
+      [0.05, 800],
+      [QUIET, 2000],
+    ]);
+    expect(decision).toBe('speech-ended');
+  });
+
   it('adapts the threshold to a noisy room', () => {
     const HUM = 0.02; // steady fan noise above the default threshold
     const ep = new Endpointer(CONFIG);
