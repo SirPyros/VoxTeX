@@ -1,0 +1,48 @@
+{
+  "name": "@voxtex/voice-math-input",
+  "version": "0.1.0",
+  "description": "Voice-to-LaTeX input SDK: on-device Whisper ASR + spoken-math grammar. Headless core, optional Web Component.",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./element": {
+      "types": "./dist/types/element.d.ts",
+      "default": "./dist/element.js"
+    },
+    "./readback-sre": {
+      "types": "./dist/types/readback-sre.d.ts",
+      "default": "./dist/readback-sre.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "katex": ">=0.16.0",
+    "speech-rule-engine": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "katex": {
+      "optional": true
+    },
+    "speech-rule-engine": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@voxtex/spoken-math-parser": "*",
+    "@types/katex": "^0.16.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
+  }
+}

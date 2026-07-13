@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>voice-math-input element demo</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1rem; }
+      #out { margin-top: 1rem; padding: 0.75rem; background: #f2f4f9; border-radius: 8px; min-height: 2.5rem; white-space: pre-wrap; font-family: monospace; }
+    </style>
+  </head>
+  <body>
+    <h1>&lt;voice-math-input&gt; Web Component demo</h1>
+    <p>
+      Dev-only page: loads the BUILT element bundle straight from
+      <code>packages/voice-math-input/dist</code> via Vite's <code>/@fs</code>
+      handler. In production you would host <code>dist/</code> on a CDN and use
+      <code>&lt;script type="module" src="https://cdn.../element.js"&gt;</code>.
+    </p>
+
+    <voice-math-input id="vmi" label="Speak math"></voice-math-input>
+    <div id="out">events will appear here…</div>
+
+    <script type="module">
+      import '/@fs/C:/Projects/Text2Math/packages/voice-math-input/dist/element.js';
+      const out = document.getElementById('out');
+      const vmi = document.getElementById('vmi');
+      const log = (line) => { out.textContent = `${line}\n${out.textContent}`.slice(0, 2000); };
+      vmi.addEventListener('mathinput', (e) => log(`mathinput  latex=${e.detail.latex}`));
+      vmi.addEventListener('matherror', (e) => log(`matherror  ${e.detail.code}: ${e.detail.message}`));
+      vmi.addEventListener('mathstatus', (e) => log(`mathstatus ${e.detail.status}`));
+    </script>
+  </body>
+</html>

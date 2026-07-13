@@ -1,0 +1,16 @@
+{
+  "name": "voxtex",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "npm run test -ws --if-present",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "dev": "npm run dev -w @voxtex/web",
+    "build": "npm run build -w @voxtex/web",
+    "preview": "npm run preview -w @voxtex/web"
+  }
+}

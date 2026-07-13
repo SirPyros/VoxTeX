@@ -1,0 +1,32 @@
+{
+  "name": "@voxtex/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/copy-sre.mjs",
+    "predev": "npm run build --prefix ../../packages/voice-math-input && node scripts/copy-sre.mjs",
+    "prebuild": "npm run build --prefix ../../packages/voice-math-input && node scripts/copy-sre.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cortex-js/compute-engine": "^0.76.0",
+    "@voxtex/spoken-math-parser": "*",
+    "@voxtex/voice-math-input": "^0.1.0",
+    "katex": "^0.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "speech-rule-engine": "^5.0.0-rc.4"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.8",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4"
+  }
+}

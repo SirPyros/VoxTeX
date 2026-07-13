@@ -1,0 +1,7 @@
+node_modules/
+dist/
+apps/web/public/sre/
+*.local
+.DS_Store
+*.zip
+*.tgz
