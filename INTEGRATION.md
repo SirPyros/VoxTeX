@@ -31,12 +31,15 @@ fallback).
 
 ### Install
 
-From your registry once published, or directly from a tarball/git while private:
-
 ```bash
 npm install @voxtex/voice-math-input
-# or: npm install ./text2math-voice-math-input-0.1.0.tgz   (npm pack output)
 ```
+
+Releases are automated: bumping `version` in
+`packages/voice-math-input/package.json` on `main` publishes to npm (with
+provenance) and creates a matching GitHub Release (`vX.Y.Z`) carrying the
+tarball — see `.github/workflows/release.yml`. The release tarball also works
+directly: `npm install ./voxtex-voice-math-input-<version>.tgz`.
 
 No loaders or plugins are needed. The SDK's ASR worker is referenced with the
 standard `new Worker(new URL('./asr-worker.js', import.meta.url))` pattern,

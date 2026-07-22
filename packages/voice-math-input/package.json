@@ -3,6 +3,28 @@
   "version": "0.1.0",
   "description": "Voice-to-LaTeX input SDK: on-device Whisper ASR + spoken-math grammar. Headless core, optional Web Component.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SirPyros/VoxTeX.git",
+    "directory": "packages/voice-math-input"
+  },
+  "homepage": "https://github.com/SirPyros/VoxTeX#readme",
+  "bugs": "https://github.com/SirPyros/VoxTeX/issues",
+  "keywords": [
+    "speech-to-math",
+    "voice-input",
+    "latex",
+    "whisper",
+    "asr",
+    "accessibility",
+    "math",
+    "webgpu",
+    "transformers.js"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist"
   ],

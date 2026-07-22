@@ -1,0 +1,110 @@
+name: Publish to npm + GitHub Release
+
+# Release flow: bump "version" in packages/voice-math-input/package.json and
+# push/merge to main. This workflow notices the version isn't on npm yet,
+# runs the tests, publishes with provenance, and creates a matching GitHub
+# Release (tag vX.Y.Z) with the tarball attached. Pushes that don't change
+# the version are no-ops.
+#
+# One-time setup: create the @voxtex org on npmjs.com, generate a granular
+# access token with read/write on the scope, and add it as the NPM_TOKEN
+# repository secret (Settings -> Secrets and variables -> Actions).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/voice-math-input/**'
+      - 'packages/spoken-math-parser/**'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the tag + release
+  id-token: write # npm provenance attestation
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Check whether this version needs publishing
+        id: check
+        shell: bash
+        run: |
+          NAME=$(node -p "require('./packages/voice-math-input/package.json').name")
+          VERSION=$(node -p "require('./packages/voice-math-input/package.json').version")
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          PUBLISHED=$(npm view "$NAME@$VERSION" version 2>/dev/null || true)
+          if [ "$PUBLISHED" = "$VERSION" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VERSION is already on npm — nothing to do. Bump the version in packages/voice-math-input/package.json to cut a release."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require NPM_TOKEN
+        if: steps.check.outputs.publish == 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "::error::The NPM_TOKEN repository secret is not set. Create a granular npm access token with publish rights for the @voxtex scope and add it under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            exit 1
+          fi
+
+      - name: Install
+        if: steps.check.outputs.publish == 'true'
+        # Lockfile is Windows-generated; drop it so Linux natives install
+        # (npm/cli#4828) — same workaround as the Pages workflow.
+        run: |
+          rm -f package-lock.json
+          npm install
+
+      - name: Test
+        if: steps.check.outputs.publish == 'true'
+        run: npm test
+
+      - name: Build SDK
+        if: steps.check.outputs.publish == 'true'
+        run: npm run build -w @voxtex/voice-math-input
+
+      - name: Publish to npm (with provenance)
+        if: steps.check.outputs.publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish -w @voxtex/voice-math-input --provenance --access public
+
+      - name: Pack tarball for the release assets
+        if: steps.check.outputs.publish == 'true'
+        run: npm pack -w @voxtex/voice-math-input --pack-destination .
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.check.outputs.version }}"
+          TITLE="${{ steps.check.outputs.name }}@${{ steps.check.outputs.version }}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Release $TAG already exists — uploading assets only."
+            gh release upload "$TAG" ./voxtex-voice-math-input-*.tgz --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --generate-notes \
+              ./voxtex-voice-math-input-*.tgz
+          fi
