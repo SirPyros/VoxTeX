@@ -38,3 +38,4 @@ Browser requirements: secure context (HTTPS/localhost) for the microphone;
 WebGPU used when available, WASM otherwise. First load downloads
 whisper-tiny.en (~40 MB, browser-cached; self-hostable via
 `assets.modelBaseUrl`).
+
